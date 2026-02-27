@@ -5,7 +5,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { createServer } from 'node:http';
-import { randomUUID } from 'node:crypto';
 
 const app = createApp();
 
@@ -30,6 +29,19 @@ function buildServer() {
   return server;
 }
 
+/** Buffer a request body and parse as JSON. */
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (c) => chunks.push(c));
+    req.on('end', () => {
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString())); }
+      catch { resolve(undefined); }
+    });
+    req.on('error', reject);
+  });
+}
+
 const httpPort = process.env.MCP_HTTP_PORT ? Number(process.env.MCP_HTTP_PORT) : null;
 
 if (httpPort) {
@@ -39,13 +51,16 @@ if (httpPort) {
   await server.connect(transport);
 
   const httpServer = createServer(async (req, res) => {
-    if (req.url === '/mcp' || req.url === '/') {
-      await transport.handleRequest(req, res);
-    } else if (req.url === '/healthz') {
+    if (req.url === '/healthz') {
       res.writeHead(200).end('ok');
-    } else {
-      res.writeHead(404).end('not found');
+      return;
     }
+    if (req.url === '/mcp' || req.url === '/') {
+      const body = await readBody(req);
+      await transport.handleRequest(req, res, body);
+      return;
+    }
+    res.writeHead(404).end('not found');
   });
 
   httpServer.listen(httpPort, () => {
