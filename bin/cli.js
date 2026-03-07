@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { createApp } from '../dist/app.js';
+import { Library } from '../dist/library.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -7,6 +8,7 @@ import { ListToolsRequestSchema, CallToolRequestSchema } from '@modelcontextprot
 import { createServer } from 'node:http';
 
 const app = createApp();
+const library = new Library();
 
 function buildServer() {
   const server = new Server({ name: app.name, version: app.version }, { capabilities: { tools: {} } });
@@ -129,65 +131,78 @@ if (httpPort) {
       const body = JSON.parse(Buffer.concat(chunks).toString());
 
       // Handle aiana_query — gateway DNS resolver asks for context
+      //
+      // Two knowledge sources, checked in order:
+      //   1. Live cluster (deterministic) — real-time state from k8s API
+      //   2. Library (reference) — k3s docs + source, fetched from git on demand
+      //
+      // Live cluster answers "what IS" — library answers "how to" and "why"
       if (body.name === 'aiana_query') {
         const queryText = (body.arguments?.query_text || '').toLowerCase();
         try {
           let context = '';
           let confidence = 0;
+          let source = 'cluster';
 
-          // Route query to the most relevant k8s tool
+          // ── Live cluster queries (real-time state) ─────────────────
           if (queryText.includes('pod') && queryText.includes('problem') || queryText.includes('crash') || queryText.includes('fail')) {
             const problems = await app.tools.find(t => t.name === 'k8s_pod_problems')?.execute({});
             context = JSON.stringify(problems, null, 2);
             confidence = problems && Array.isArray(problems) && problems.length > 0 ? 0.9 : 0.7;
-          } else if (queryText.includes('pod') || queryText.includes('running') || queryText.includes('container')) {
+          } else if (/\b(list|show|get|what)\b.*\b(pod|running|container)s?\b/.test(queryText) && !queryText.includes('how')) {
             const ns = queryText.match(/namespace\s+(\S+)/)?.[1] || queryText.match(/in\s+(\S+)\s/)?.[1];
             const pods = await app.tools.find(t => t.name === 'k8s_list_pods')?.execute(ns ? { namespace: ns } : {});
             context = JSON.stringify(pods, null, 2);
             confidence = 0.95;
-          } else if (queryText.includes('deploy')) {
+          } else if (/\b(list|show|get|what)\b.*\bdeploy/.test(queryText) && !queryText.includes('how')) {
             const ns = queryText.match(/namespace\s+(\S+)/)?.[1];
             const deploys = await app.tools.find(t => t.name === 'k8s_list_deployments')?.execute(ns ? { namespace: ns } : {});
             context = JSON.stringify(deploys, null, 2);
             confidence = 0.95;
-          } else if (queryText.includes('node')) {
+          } else if (/\b(list|show|get|what)\b.*\bnodes?\b/.test(queryText) && !queryText.includes('how')) {
             const nodes = await app.tools.find(t => t.name === 'k8s_list_nodes')?.execute({});
             context = JSON.stringify(nodes, null, 2);
             confidence = 0.95;
-          } else if (queryText.includes('service')) {
+          } else if (/\b(list|show|get|what)\b.*\bservices?\b/.test(queryText) && !queryText.includes('how')) {
             const ns = queryText.match(/namespace\s+(\S+)/)?.[1];
             const svcs = await app.tools.find(t => t.name === 'k8s_list_services')?.execute(ns ? { namespace: ns } : {});
             context = JSON.stringify(svcs, null, 2);
             confidence = 0.95;
-          } else if (queryText.includes('event') || queryText.includes('warning')) {
+          } else if (/\b(list|show|get)\b.*\b(event|warning)/.test(queryText)) {
             const events = await app.tools.find(t => t.name === 'k8s_list_events')?.execute({});
             context = JSON.stringify(events, null, 2);
             confidence = 0.85;
-          } else if (queryText.includes('argocd') || queryText.includes('argo')) {
+          } else if (/\b(list|show|get)\b.*\b(argocd|argo)\b/.test(queryText)) {
             const apps = await app.tools.find(t => t.name === 'k8s_list_argocd_apps')?.execute({});
             context = JSON.stringify(apps, null, 2);
             confidence = 0.95;
-          } else if (queryText.includes('longhorn') || queryText.includes('volume') || queryText.includes('pvc') || queryText.includes('storage')) {
+          } else if (/\b(list|show|get)\b.*\b(longhorn|volume|pvc)\b/.test(queryText)) {
             const vols = await app.tools.find(t => t.name === 'k8s_list_longhorn_volumes')?.execute({});
             context = JSON.stringify(vols, null, 2);
             confidence = 0.85;
-          } else if (queryText.includes('ingress') || queryText.includes('route') || queryText.includes('traefik')) {
+          } else if (/\b(list|show|get)\b.*\b(ingress|route|traefik)\b/.test(queryText)) {
             const routes = await app.tools.find(t => t.name === 'k8s_list_ingress_routes')?.execute({});
             context = JSON.stringify(routes, null, 2);
             confidence = 0.85;
-          } else if (queryText.includes('cluster') || queryText.includes('info') || queryText.includes('status')) {
-            const info = await app.tools.find(t => t.name === 'k8s_cluster_info')?.execute({});
-            context = JSON.stringify(info, null, 2);
-            confidence = 0.9;
           } else {
-            // Default: return cluster info as general context
-            const info = await app.tools.find(t => t.name === 'k8s_cluster_info')?.execute({});
-            context = JSON.stringify(info, null, 2);
-            confidence = 0.5;
+            // ── Library queries (reference docs) ──────────────────────
+            // Not a live cluster query — check the library
+            const libraryResult = await library.query(queryText);
+            if (libraryResult && libraryResult.context) {
+              context = libraryResult.context;
+              confidence = libraryResult.confidence;
+              source = 'library';
+              console.log(`[fabric-k8s] Library hit: ${libraryResult.sources.join(', ')}`);
+            } else {
+              // Nothing in library either — return cluster info as fallback
+              const info = await app.tools.find(t => t.name === 'k8s_cluster_info')?.execute({});
+              context = JSON.stringify(info, null, 2);
+              confidence = 0.5;
+            }
           }
 
           res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ context, confidence }));
+          res.end(JSON.stringify({ context, confidence, source }));
         } catch (err) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ context: `Error querying k8s: ${err.message}`, confidence: 0 }));
