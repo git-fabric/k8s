@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/banner.svg" alt="k8s: Cluster, pods, deployments, services and logs via MCP" width="100%"></p>
+
 # @git-fabric/k8s
 
 Kubernetes operations fabric — cluster, pods, deployments, services, nodes, events, storage, ArgoCD, and ingress as a composable MCP layer.
@@ -89,3 +91,8 @@ The library uses a topic index to match query keywords to specific files, fetche
 ## License
 
 MIT
+
+<!-- org-footer -->
+---
+
+<p align="center"><sub>Part of <a href="https://github.com/git-fabric">git-fabric</a> · composable fabric apps for Git-native infrastructure · built by <a href="https://github.com/ry-ops">ry-ops</a></sub></p>
