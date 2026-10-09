@@ -14,6 +14,7 @@ interface FabricTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  annotations?: { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean; openWorldHint?: boolean };
   execute: (args: Record<string, unknown>) => Promise<unknown>;
 }
 
@@ -35,6 +36,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_cluster_info',
       description: 'Get cluster info: server version, node count, namespace count, pod count.',
+      annotations: { readOnlyHint: true },
       inputSchema: { type: 'object', properties: {} },
       execute: async () => k8s.getClusterInfo(),
     },
@@ -44,6 +46,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_namespaces',
       description: 'List all namespaces in the cluster.',
+      annotations: { readOnlyHint: true },
       inputSchema: { type: 'object', properties: {} },
       execute: async () => k8s.listNamespaces(),
     },
@@ -53,6 +56,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_pods',
       description: 'List pods, optionally filtered by namespace.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -64,6 +68,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_get_pod',
       description: 'Get full details for a pod: containers, conditions, and recent events.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -77,6 +82,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_get_pod_logs',
       description: 'Get logs from a pod container.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -101,6 +107,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_pod_problems',
       description: 'List pods that are failing, crashing, or not ready.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -115,6 +122,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_deployments',
       description: 'List deployments, optionally filtered by namespace.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: { namespace: { type: 'string' } },
@@ -124,6 +132,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_get_deployment',
       description: 'Get full details for a deployment: image, strategy, conditions.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -140,6 +149,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_services',
       description: 'List services, optionally filtered by namespace.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: { namespace: { type: 'string' } },
@@ -152,12 +162,14 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_nodes',
       description: 'List all nodes with status, roles, and version.',
+      annotations: { readOnlyHint: true },
       inputSchema: { type: 'object', properties: {} },
       execute: async () => k8s.listNodes(),
     },
     {
       name: 'k8s_get_node',
       description: 'Get full details for a node: capacity, allocatable resources, taints, conditions.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: { name: { type: 'string' } },
@@ -171,6 +183,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_events',
       description: 'List recent cluster events, optionally filtered by namespace. Warning events surface failures and scheduling issues.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -189,6 +202,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_pvcs',
       description: 'List PersistentVolumeClaims with status, capacity, and storage class.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -203,6 +217,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_cronjobs',
       description: 'List CronJobs with schedule, suspend status, and last schedule time.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -214,6 +229,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_jobs',
       description: 'List Jobs with completion status and duration.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -228,6 +244,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_ingress_routes',
       description: 'List Traefik IngressRoutes with entry points and routing rules.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -242,12 +259,14 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_argocd_apps',
       description: 'List all ArgoCD Applications with sync and health status.',
+      annotations: { readOnlyHint: true },
       inputSchema: { type: 'object', properties: {} },
       execute: async () => k8s.listArgoCDApps(),
     },
     {
       name: 'k8s_get_argocd_app',
       description: 'Get full ArgoCD Application details: resources, conditions, and deploy history.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -263,6 +282,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_scaled_objects',
       description: 'List KEDA ScaledObjects with target, replica bounds, and trigger types.',
+      annotations: { readOnlyHint: true },
       inputSchema: {
         type: 'object',
         properties: {
@@ -277,6 +297,7 @@ export function createApp(adapterOverride?: K8sAdapter): FabricApp {
     {
       name: 'k8s_list_longhorn_volumes',
       description: 'List Longhorn volumes with state, robustness, replica count, and bound PVC.',
+      annotations: { readOnlyHint: true },
       inputSchema: { type: 'object', properties: {} },
       execute: async () => k8s.listLonghornVolumes(),
     },
