@@ -30,10 +30,10 @@ function age(date) {
 async function listCustomObjects(customApi, group, version, plural, namespace) {
     try {
         const res = namespace
-            ? await customApi.listNamespacedCustomObject(group, version, namespace, plural)
-            : await customApi.listClusterCustomObject(group, version, plural);
+            ? await customApi.listNamespacedCustomObject({ group, version, namespace, plural })
+            : await customApi.listClusterCustomObject({ group, version, plural });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        return res.body.items ?? [];
+        return res.items ?? [];
     }
     catch {
         return [];
@@ -58,21 +58,21 @@ export function createAdapterFromEnv() {
         async getClusterInfo() {
             const [versionRes, nodesRes, namespacesRes, podsRes] = await Promise.all([
                 versionApi.getCode(),
-                coreV1.listNode(),
-                coreV1.listNamespace(),
-                coreV1.listPodForAllNamespaces(),
+                coreV1.listNode({}),
+                coreV1.listNamespace({}),
+                coreV1.listPodForAllNamespaces({}),
             ]);
             return {
-                serverVersion: `${versionRes.body.major}.${versionRes.body.minor}`,
-                platform: versionRes.body.platform ?? 'unknown',
-                nodeCount: nodesRes.body.items.length,
-                namespaceCount: namespacesRes.body.items.length,
-                podCount: podsRes.body.items.length,
+                serverVersion: `${versionRes.major}.${versionRes.minor}`,
+                platform: versionRes.platform ?? 'unknown',
+                nodeCount: nodesRes.items.length,
+                namespaceCount: namespacesRes.items.length,
+                podCount: podsRes.items.length,
             };
         },
         // ── Namespaces ────────────────────────────────────────────────────────────
         async listNamespaces() {
-            const { body } = await coreV1.listNamespace();
+            const body = await coreV1.listNamespace({});
             return body.items.map((ns) => ({
                 name: ns.metadata?.name ?? '',
                 status: ns.status?.phase ?? 'Unknown',
@@ -81,9 +81,9 @@ export function createAdapterFromEnv() {
         },
         // ── Pods ──────────────────────────────────────────────────────────────────
         async listPods(namespace) {
-            const { body } = namespace
-                ? await coreV1.listNamespacedPod(namespace)
-                : await coreV1.listPodForAllNamespaces();
+            const body = namespace
+                ? await coreV1.listNamespacedPod({ namespace })
+                : await coreV1.listPodForAllNamespaces({});
             return body.items.map((pod) => {
                 const cs = pod.status?.containerStatuses ?? [];
                 const ready = cs.filter((c) => c.ready).length;
@@ -101,10 +101,10 @@ export function createAdapterFromEnv() {
         },
         async getPod(namespace, name) {
             const [podRes, eventsRes] = await Promise.all([
-                coreV1.readNamespacedPod(name, namespace),
-                coreV1.listNamespacedEvent(namespace, undefined, undefined, undefined, `involvedObject.name=${name}`),
+                coreV1.readNamespacedPod({ name, namespace }),
+                coreV1.listNamespacedEvent({ namespace, fieldSelector: `involvedObject.name=${name}` }),
             ]);
-            const pod = podRes.body;
+            const pod = podRes;
             const cs = pod.status?.containerStatuses ?? [];
             const ready = cs.filter((c) => c.ready).length;
             const restarts = cs.reduce((sum, c) => sum + (c.restartCount ?? 0), 0);
@@ -123,7 +123,7 @@ export function createAdapterFromEnv() {
                 }
                 return { name: c.name, image: c.image, ready: c.ready, restarts: c.restartCount ?? 0, state, reason };
             });
-            const events = eventsRes.body.items
+            const events = eventsRes.items
                 .sort((a, b) => new Date(b.lastTimestamp ?? 0).getTime() - new Date(a.lastTimestamp ?? 0).getTime())
                 .slice(0, 10)
                 .map((e) => ({
@@ -149,13 +149,20 @@ export function createAdapterFromEnv() {
             };
         },
         async getPodLogs(namespace, name, opts) {
-            const { body } = await coreV1.readNamespacedPodLog(name, namespace, opts?.container, undefined, undefined, undefined, undefined, opts?.previous ?? false, opts?.sinceSeconds, opts?.tailLines ?? 100, true);
-            return body;
+            return coreV1.readNamespacedPodLog({
+                name,
+                namespace,
+                container: opts?.container,
+                previous: opts?.previous ?? false,
+                sinceSeconds: opts?.sinceSeconds,
+                tailLines: opts?.tailLines ?? 100,
+                timestamps: true,
+            });
         },
         async getPodProblems(namespace) {
-            const { body } = namespace
-                ? await coreV1.listNamespacedPod(namespace)
-                : await coreV1.listPodForAllNamespaces();
+            const body = namespace
+                ? await coreV1.listNamespacedPod({ namespace })
+                : await coreV1.listPodForAllNamespaces({});
             return body.items
                 .filter((pod) => {
                 const phase = pod.status?.phase;
@@ -183,9 +190,9 @@ export function createAdapterFromEnv() {
         },
         // ── Deployments ───────────────────────────────────────────────────────────
         async listDeployments(namespace) {
-            const { body } = namespace
-                ? await appsV1.listNamespacedDeployment(namespace)
-                : await appsV1.listDeploymentForAllNamespaces();
+            const body = namespace
+                ? await appsV1.listNamespacedDeployment({ namespace })
+                : await appsV1.listDeploymentForAllNamespaces({});
             return body.items.map((d) => ({
                 namespace: d.metadata?.namespace ?? '',
                 name: d.metadata?.name ?? '',
@@ -196,7 +203,7 @@ export function createAdapterFromEnv() {
             }));
         },
         async getDeployment(namespace, name) {
-            const { body: d } = await appsV1.readNamespacedDeployment(name, namespace);
+            const d = await appsV1.readNamespacedDeployment({ name, namespace });
             const containers = d.spec?.template?.spec?.containers ?? [];
             return {
                 namespace, name,
@@ -216,9 +223,9 @@ export function createAdapterFromEnv() {
         },
         // ── Services ──────────────────────────────────────────────────────────────
         async listServices(namespace) {
-            const { body } = namespace
-                ? await coreV1.listNamespacedService(namespace)
-                : await coreV1.listServiceForAllNamespaces();
+            const body = namespace
+                ? await coreV1.listNamespacedService({ namespace })
+                : await coreV1.listServiceForAllNamespaces({});
             return body.items.map((svc) => {
                 const ports = (svc.spec?.ports ?? []).map((p) => `${p.port}/${p.protocol ?? 'TCP'}`).join(',');
                 const externalIPs = svc.status?.loadBalancer?.ingress?.map((i) => i.ip ?? i.hostname).join(',');
@@ -235,7 +242,7 @@ export function createAdapterFromEnv() {
         },
         // ── Nodes ─────────────────────────────────────────────────────────────────
         async listNodes() {
-            const { body } = await coreV1.listNode();
+            const body = await coreV1.listNode({});
             return body.items.map((node) => {
                 const ready = node.status?.conditions?.find((c) => c.type === 'Ready');
                 const roles = Object.keys(node.metadata?.labels ?? {})
@@ -253,7 +260,7 @@ export function createAdapterFromEnv() {
             });
         },
         async getNode(name) {
-            const { body: node } = await coreV1.readNode(name);
+            const node = await coreV1.readNode({ name });
             const ready = node.status?.conditions?.find((c) => c.type === 'Ready');
             const roles = Object.keys(node.metadata?.labels ?? {})
                 .filter((k) => k.startsWith('node-role.kubernetes.io/'))
@@ -287,9 +294,9 @@ export function createAdapterFromEnv() {
         },
         // ── Events ────────────────────────────────────────────────────────────────
         async listEvents(namespace, limit = 50) {
-            const { body } = namespace
-                ? await coreV1.listNamespacedEvent(namespace)
-                : await coreV1.listEventForAllNamespaces();
+            const body = namespace
+                ? await coreV1.listNamespacedEvent({ namespace })
+                : await coreV1.listEventForAllNamespaces({});
             return body.items
                 .sort((a, b) => new Date(b.lastTimestamp ?? 0).getTime() - new Date(a.lastTimestamp ?? 0).getTime())
                 .slice(0, limit)
@@ -306,9 +313,9 @@ export function createAdapterFromEnv() {
         },
         // ── PVCs ──────────────────────────────────────────────────────────────────
         async listPVCs(namespace) {
-            const { body } = namespace
-                ? await coreV1.listNamespacedPersistentVolumeClaim(namespace)
-                : await coreV1.listPersistentVolumeClaimForAllNamespaces();
+            const body = namespace
+                ? await coreV1.listNamespacedPersistentVolumeClaim({ namespace })
+                : await coreV1.listPersistentVolumeClaimForAllNamespaces({});
             return body.items.map((pvc) => ({
                 namespace: pvc.metadata?.namespace ?? '',
                 name: pvc.metadata?.name ?? '',
@@ -322,9 +329,9 @@ export function createAdapterFromEnv() {
         },
         // ── CronJobs & Jobs ───────────────────────────────────────────────────────
         async listCronJobs(namespace) {
-            const { body } = namespace
-                ? await batchV1.listNamespacedCronJob(namespace)
-                : await batchV1.listCronJobForAllNamespaces();
+            const body = namespace
+                ? await batchV1.listNamespacedCronJob({ namespace })
+                : await batchV1.listCronJobForAllNamespaces({});
             return body.items.map((cj) => ({
                 namespace: cj.metadata?.namespace ?? '',
                 name: cj.metadata?.name ?? '',
@@ -338,9 +345,9 @@ export function createAdapterFromEnv() {
             }));
         },
         async listJobs(namespace) {
-            const { body } = namespace
-                ? await batchV1.listNamespacedJob(namespace)
-                : await batchV1.listJobForAllNamespaces();
+            const body = namespace
+                ? await batchV1.listNamespacedJob({ namespace })
+                : await batchV1.listJobForAllNamespaces({});
             return body.items.map((job) => {
                 const succeeded = job.status?.succeeded ?? 0;
                 const completions = job.spec?.completions ?? 1;
@@ -396,8 +403,13 @@ export function createAdapterFromEnv() {
         },
         async getArgoCDApp(name) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const res = await customApi.getNamespacedCustomObject('argoproj.io', 'v1alpha1', 'argocd', 'applications', name);
-            const app = res.body;
+            const app = await customApi.getNamespacedCustomObject({
+                group: 'argoproj.io',
+                version: 'v1alpha1',
+                namespace: 'argocd',
+                plural: 'applications',
+                name,
+            });
             return {
                 name: app.metadata?.name ?? '',
                 project: app.spec?.project ?? 'default',
