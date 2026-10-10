@@ -4,27 +4,13 @@
   "description": "Kubernetes operations fabric app — cluster, pods, deployments, services, and logs as a composable MCP layer",
   "author": "git-fabric",
   "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/git-fabric/k8s.git"
-  },
-  "keywords": [
-    "kubernetes",
-    "k8s",
-    "mcp",
-    "model-context-protocol",
-    "git-fabric"
-  ],
+  "repository": { "type": "git", "url": "https://github.com/git-fabric/k8s.git" },
+  "keywords": ["kubernetes", "k8s", "mcp", "model-context-protocol", "git-fabric"],
   "type": "module",
-  "bin": {
-    "fabric-k8s": "./bin/cli.js"
-  },
+  "bin": { "fabric-k8s": "./bin/cli.js" },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": [
-    "bin/",
-    "dist/"
-  ],
+  "files": ["bin/", "dist/"],
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
@@ -42,7 +28,5 @@
     "typescript": "^5.3.0",
     "vitest": "^4.0.18"
   },
-  "engines": {
-    "node": ">=20.0.0"
-  }
+  "engines": { "node": ">=20.0.0" }
 }
